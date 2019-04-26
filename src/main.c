@@ -1,29 +1,32 @@
 #include <stdio.h>
+#include <stdint.h>
+#include <ctype.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 
 float iterations = 100;
 int startzoom = 1;
-float zoomfactor = 1;
+float zoomfactor = 0;
 
-int msdelay = 100;
+int msdelay = 1;
 
 int termWidth = 80;
 int termHeight = 25;
 
-float panx = -0.745;
-float pany = 0.1;
+float panx = 0;
+float pany = 0;
 
 float autoincrease = 0;
+float autozoom = 0;
 
 char *colors[] = {
 	"\033[30m.",
 	"\033[30m*",
-	"\033[31m*",
-	"\033[31m*",
-	"\033[33m%",
-	"\033[33m%",
+	"\033[33m*",
+	"\033[33m*",
+	"\033[31m%",
+	"\033[31m%",
 	"\033[93m%",
 	"\033[93m@",
 	"\033[91m@",
@@ -32,7 +35,7 @@ char *colors[] = {
 	"\033[97m#",
 };
 
-int mandel(float x, float y){
+int mandel(double x, double y){
 	double realComp = x;
 	double imagComp = y;
 	for(size_t i = 0; i < iterations; i++){
@@ -51,51 +54,64 @@ int mandel(float x, float y){
 	return 0;
 }
 
-void parseargs(int argc, char **argv){
-	for(size_t i = 1; i < argc; i++){
-		if(argv[i][0] == '-'){
-			if(argv[i][1] == 'w'){
-				i++;
-				if(i >= argc) return;
-				termWidth = atol(argv[i]);
-			}
-			if(argv[i][1] == 'h'){
-				i++;
-				if(i >= argc) return;
-				termHeight = atol(argv[i]);
-			}
-
-			if(argv[i][1] == 'd'){
-				i++;
-				if(i >= argc) return;
-				msdelay = atol(argv[i]);
-			}
-			if(argv[i][1] == 'a'){
-				autoincrease = 0.5;
-			}	
-			if(argv[i][1] == 'i'){
-				i++;
-				if(i >= argc) return;
-				iterations = atol(argv[i]);
-			}
-			if(argv[i][1] == 'z'){
-				i++;
-				if(i >= argc) return;
-				zoomfactor = atol(argv[i]);
-			}
+int parseargs(int argc, char **argv){
+	int c;
+	opterr = 0;
+	while((c = getopt(argc, argv, "w:h:x:y:i:z:d:a:A:")) != -1){
+		switch(c){
+			case 'w':
+				termWidth = atoi(optarg);
+			break;
+			case 'h':
+				termHeight = atoi(optarg);
+			break;
+			case 'x':
+				panx = atof(optarg);
+			break;
+			case 'y':
+				pany = atof(optarg);
+			break;	
+			case 'i':
+				iterations = atoi(optarg);
+			break;
+			case 'z':
+				startzoom = atoi(optarg);
+			break;
+			case 'd':
+				msdelay = atof(optarg);
+			break;
+			case 'a':
+				autoincrease = atof(optarg);
+			break;
+			case 'A':
+				autozoom = atof(optarg);
+			break;
+			case '?':
+				if(optopt == 'w' || optopt == 'h' || optopt == 'i' || optopt == 'z'){
+					fprintf(stderr, "Option '%c' requires an argument.\n", optopt);
+				}else if(isprint(optopt)){
+					fprintf(stderr, "Unknown option: '%c'.\n", optopt);
+				}else {
+					fprintf(stderr, "Unknown charactor for option: '\\x%x'.\n", optopt);
+				}
+				return 1;
+			break;
+			default:
+				abort();
 		}
 	}
+	return 0;
 }
 
 int main(int argc, char **argv){
-	parseargs(argc, argv);
+	if(parseargs(argc, argv)) exit(1);
 	printf("\033[H\033[J");
 
 	while(1){
 	for(int y = -termHeight / 2; y < termHeight / 2; y++){
-		for(int x = -termHeight / 2; x < termWidth / 2; x++){
-			float ix = (float)(x) / (float)startzoom;
-			float iy = (float)(y) / (float)startzoom;
+		for(int x = -termWidth / 2; x < termWidth / 2; x++){
+			double ix = (float)(x) / (float)startzoom;
+			double iy = (float)(y) / (float)startzoom;
 			
 			ix += panx;
 			iy += pany;
@@ -105,10 +121,11 @@ int main(int argc, char **argv){
 		}
 		printf("\n");
 	}
-	printf("\033[97mZoom: %i, Iterations: %f", startzoom, iterations);
+	printf("\033[97mZoom: %i, Iterations: %i, Zoom factor %i", startzoom, (int)iterations, (int)zoomfactor);
 	startzoom += zoomfactor;
 	iterations += autoincrease;
+	zoomfactor += autozoom;
 	usleep(msdelay);
-	printf("\033[%iA\033[%iD", termWidth, termHeight);
+	printf("\033[H\033[%iD", termHeight);
 	}
 }
