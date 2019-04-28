@@ -20,6 +20,9 @@ float pany = 0;
 float autoincrease = 0;
 float autozoom = 0;
 
+float granularity = 2;
+char smoothing = 1;
+
 char *colors[] = {
 	"\033[30m.",
 	"\033[30m*",
@@ -46,9 +49,7 @@ int mandel(double x, double y){
 		imagComp = tmpImag;
 
 		if(realComp * imagComp > 5){
-			int res = ((float)i / iterations) * 12;
-			if(res > 11) res = 11;
-			return res;
+			return i;
 		}
 	}
 	return 0;
@@ -57,7 +58,7 @@ int mandel(double x, double y){
 int parseargs(int argc, char **argv){
 	int c;
 	opterr = 0;
-	while((c = getopt(argc, argv, "w:h:x:y:i:z:d:a:A:")) != -1){
+	while((c = getopt(argc, argv, "w:h:x:y:i:z:d:a:A:g:s:")) != -1){
 		switch(c){
 			case 'w':
 				termWidth = atoi(optarg);
@@ -86,6 +87,12 @@ int parseargs(int argc, char **argv){
 			case 'A':
 				autozoom = atof(optarg);
 			break;
+			case 'g':
+				granularity = atof(optarg);
+			break;
+			case 's':
+				smoothing = atoi(optarg);
+			break;
 			case '?':
 				if(optopt == 'w' || optopt == 'h' || optopt == 'i' || optopt == 'z'){
 					fprintf(stderr, "Option '%c' requires an argument.\n", optopt);
@@ -110,14 +117,34 @@ int main(int argc, char **argv){
 	while(1){
 	for(int y = -termHeight / 2; y < termHeight / 2; y++){
 		for(int x = -termWidth / 2; x < termWidth / 2; x++){
+			double avgpart = 0;
+				
 			double ix = (float)(x) / (float)startzoom;
 			double iy = (float)(y) / (float)startzoom;
-			
 			ix += panx;
 			iy += pany;
 
-			int res = mandel(ix, iy);
-			printf("%s", colors[res]);
+			if(smoothing){
+				for(int y2 = -1; y2 <= 1; y2++){
+					for(int x2 = -1; x2 <= 1; x2++){
+						double ix2 = (float)(x2) / ((float)startzoom * granularity);
+						double iy2 = (float)(y2) / ((float)startzoom * granularity);
+
+						ix2 += ix;
+						iy2 += iy;
+						
+						avgpart += mandel(ix2, iy2);
+					}
+				}
+				avgpart /= (iterations * 9);
+				avgpart *= 12;
+				if(avgpart > 11) avgpart = 11;
+			}else{
+				avgpart = ((mandel(ix, iy) / iterations) * 12);
+				if(avgpart > 11) avgpart = 11;
+			}
+
+			printf("%s", colors[(int)avgpart]);
 		}
 		printf("\n");
 	}
