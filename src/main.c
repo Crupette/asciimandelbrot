@@ -1,14 +1,13 @@
 #include <stdio.h>
 #include <stdint.h>
-#include <ctype.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 #include <getopt.h>
 
 #define VERSION_MAJOR 1
-#define VERSION_MINOR 0
-#define VERSION_BUGFIX 1
+#define VERSION_MINOR 1
+#define VERSION_BUGFIX 0
 
 float iterations = 100;
 int startzoom = 1;
@@ -28,21 +27,23 @@ float autozoom = 0;
 float granularity = 2;
 char smoothing = 1;
 
-int helpFlag = 0, versionFlag = 0;
+int helpFlag = 0, versionFlag = 0, monochrome = 0;
+
+const char *characters = " .,`\"-_^+=~:;<>%*/\\|crovuaszxenm2()ilIj?{}J![]ftL1dqgyhbk4357TQYFSZ$EP9&CVUADKGO068@HX#BNMW";
 
 char *colors[] = {
-	"\033[30m.",
-	"\033[30m*",
-	"\033[33m*",
-	"\033[33m*",
-	"\033[31m%",
-	"\033[31m%",
-	"\033[93m%",
-	"\033[93m@",
-	"\033[91m@",
-	"\033[91m@",
-	"\033[91m#",
-	"\033[97m#",
+	"\033[30m",
+	"\033[30m",
+	"\033[33m",
+	"\033[33m",
+	"\033[31m",
+	"\033[31m",
+	"\033[93m",
+	"\033[93m",
+	"\033[91m",
+	"\033[91m",
+	"\033[91m",
+	"\033[97m"
 };
 
 static struct option long_options[] = {
@@ -59,6 +60,7 @@ static struct option long_options[] = {
 	{"autozoom", required_argument, 0, 'A'},
 	{"granularity", required_argument, 0, 'g'},
 	{"nosmooth", no_argument, (int*)&smoothing, 1},
+	{"monochrome", no_argument, &monochrome, 1},
 	{NULL, 0, NULL, 0}
 };
 
@@ -76,7 +78,8 @@ void help(void){
 	printf("  -a --autoincrement: Ammount of detail to add to the iterations each frame.\n");
 	printf("  -A --autozoom:   Ammount of zoom to add to the zoom factor each frame.\n");
 	printf("  -g --granularity:   Inverse ammount of smoothing to preform.\n");
-	printf("  -s --nosmooth:   Do not smooth the frame.\n");
+	printf("  -s --nosmooth:   Do not smooth the frame. (much faster)\n");
+	printf("     --monochrome: Displays the set as monochrome (slightly faster)\n");
 	printf("     --help:       Shows this imformation.\n");
 	printf("     --version:    Shows the version number.\n");
 }
@@ -102,7 +105,7 @@ int parseargs(int argc, char **argv){
 	int c;
 	int option_index = 0;
 	opterr = 0;
-	while((c = getopt_long(argc, argv, "w:h:x:y:i:z:d:a:A:g:s:", long_options, &option_index)) != -1){
+	while((c = getopt_long(argc, argv, "w:h:x:y:i:z:d:a:A:g:s", long_options, &option_index)) != -1){
 		switch(c){
 			case '0':
 
@@ -141,13 +144,7 @@ int parseargs(int argc, char **argv){
 				smoothing = 0;
 			break;
 			case '?':
-				if(optopt == 'w' || optopt == 'h' || optopt == 'i' || optopt == 'z'){
-					fprintf(stderr, "Option '%c' requires an argument.\n", optopt);
-				}else if(isprint(optopt)){
-					fprintf(stderr, "Unknown option: '%c'.\n", optopt);
-				}else {
-					fprintf(stderr, "Unknown charactor for option: '\\x%x'.\n", optopt);
-				}
+				fprintf(stderr, "Unknown option: '%c'.\n", optopt);	
 				return 1;
 			break;
 		}
@@ -167,11 +164,16 @@ int main(int argc, char **argv){
 	if(parseargs(argc, argv)) exit(1);
 	printf("\033[H\033[J");
 
+	size_t divisor = strlen(characters);
+
 	while(1){
 	for(int y = -termHeight / 2; y < termHeight / 2; y++){
 		for(int x = -termWidth / 2; x < termWidth / 2; x++){
 			double avgpart = 0;
 				
+			double c = 0;
+			double color = 0;
+
 			double ix = (float)(x) / (float)startzoom;
 			double iy = (float)(y) / (float)startzoom;
 			ix += panx;
@@ -189,15 +191,23 @@ int main(int argc, char **argv){
 						avgpart += mandel(ix2, iy2);
 					}
 				}
-				avgpart /= (iterations * 9);
-				avgpart *= 12;
-				if(avgpart > 11) avgpart = 11;
+
+				c = ((avgpart / (iterations * 9)) * divisor);
+				if(!monochrome)
+					color = ((avgpart / (iterations * 9)) * 12);
 			}else{
-				avgpart = ((mandel(ix, iy) / iterations) * 12);
-				if(avgpart > 11) avgpart = 11;
+				c = ((avgpart / iterations) * divisor);
+				if(!monochrome)
+					color = ((avgpart / iterations) * 12);
 			}
 
-			printf("%s", colors[(int)avgpart]);
+			if(c > divisor-1) c = divisor-1;
+			if(color > 11) color = 11;
+
+			if(!monochrome)
+				printf(colors[(int)color]);
+			printf("%c", characters[(int)c]);
+
 		}
 		printf("\n");
 	}
